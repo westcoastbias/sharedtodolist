@@ -10,7 +10,7 @@
   https://console.cloud.google.com → APIs & Services → Credentials
   Required scopes: https://www.googleapis.com/auth/drive
 ──────────────────────────────────────────────────────────────────────────── -->
-<script>const GOOGLE_CLIENT_ID = '852239632314-406une4uj0d6b4dblh2niels8pa3ukg2.apps.googleusercontent.com';</script>
+<script>const GOOGLE_CLIENT_ID = 'YOUR_CLIENT_ID_HERE';</script>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
@@ -413,19 +413,40 @@ window.onload = () => {
     return;
   }
 
+  const savedHint = localStorage.getItem('work_login_hint') || '';
+
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: GOOGLE_CLIENT_ID,
     scope: 'https://www.googleapis.com/auth/drive',
+    hint: savedHint,
     callback: async (resp) => {
-      if (resp.error) { showToast('Sign-in error: ' + resp.error); return; }
+      if (resp.error) {
+        // Silent re-auth failed — fall back to showing the sign-in button
+        document.getElementById('auth-screen').style.display = 'flex';
+        return;
+      }
       accessToken = resp.access_token;
       showApp();
       await loadFromDrive();
     }
   });
+
+  // Try silent sign-in first (no prompt if user already granted consent)
+  if (savedHint) {
+    document.getElementById('auth-screen').style.display = 'none'; // hide briefly while trying
+    tokenClient.requestAccessToken({ prompt: '' });
+  }
 };
 
-function signIn() { tokenClient?.requestAccessToken(); }
+function signIn() {
+  tokenClient?.requestAccessToken({ prompt: 'select_account' });
+}
+
+function updateUserChip(email) {
+  if (email) localStorage.setItem('work_login_hint', email);
+  const chip = document.getElementById('user-chip');
+  if (chip && email) chip.textContent = email;
+}
 
 function signOut() {
   if (!confirm('Sign out?')) return;
@@ -433,13 +454,22 @@ function signOut() {
   accessToken = null;
   driveFileId = null;
   tasks = [];
+  localStorage.removeItem('work_login_hint');
   document.getElementById('app').classList.remove('visible');
   document.getElementById('auth-screen').style.display = 'flex';
 }
 
-function showApp() {
+async function showApp() {
   document.getElementById('auth-screen').style.display = 'none';
   document.getElementById('app').classList.add('visible');
+  // Fetch user email to store as login hint for auto sign-in on next load
+  try {
+    const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    const info = await res.json();
+    updateUserChip(info.email);
+  } catch(e) { /* non-fatal */ }
 }
 
 // ─── DRIVE API ─────────────────────────────────────────────────────────────
