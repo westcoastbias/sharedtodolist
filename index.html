@@ -402,7 +402,7 @@ let currentFilter = 'all';
 let currentSort = 'recommended';
 
 // ─── AUTH ──────────────────────────────────────────────────────────────────
-window.onload = () => {
+function initAuth() {
   if (GOOGLE_CLIENT_ID === 'YOUR_CLIENT_ID_HERE') {
     document.getElementById('auth-screen').innerHTML = `
       <div class="auth-title">Setup Required</div>
@@ -410,6 +410,15 @@ window.onload = () => {
         Open <code>work-web.html</code> and replace <code>YOUR_CLIENT_ID_HERE</code>
         with your Google OAuth Client ID. See the comment at the top of the file for instructions.
       </div>`;
+    return;
+  }
+
+  // Check for a still-valid token stored this session
+  const stored = JSON.parse(sessionStorage.getItem('work_token') || 'null');
+  if (stored && stored.token && stored.expires > Date.now()) {
+    accessToken = stored.token;
+    showApp();
+    loadFromDrive();
     return;
   }
 
@@ -421,22 +430,31 @@ window.onload = () => {
     hint: savedHint,
     callback: async (resp) => {
       if (resp.error) {
-        // Silent re-auth failed — fall back to showing the sign-in button
         document.getElementById('auth-screen').style.display = 'flex';
         return;
       }
       accessToken = resp.access_token;
+      // Cache token for ~55 min (tokens last 1hr)
+      sessionStorage.setItem('work_token', JSON.stringify({
+        token: accessToken,
+        expires: Date.now() + 55 * 60 * 1000
+      }));
       showApp();
       await loadFromDrive();
     }
   });
 
-  // Try silent sign-in first (no prompt if user already granted consent)
+  // Try silent sign-in if we have a hint; otherwise show button
   if (savedHint) {
-    document.getElementById('auth-screen').style.display = 'none'; // hide briefly while trying
     tokenClient.requestAccessToken({ prompt: '' });
+  } else {
+    document.getElementById('auth-screen').style.display = 'flex';
   }
-};
+}
+
+// GIS library calls this when ready; fall back to onload if already loaded
+window.onGoogleLibraryLoad = initAuth;
+window.onload = () => { if (window.google?.accounts) initAuth(); };
 
 function signIn() {
   tokenClient?.requestAccessToken({ prompt: 'select_account' });
@@ -455,6 +473,7 @@ function signOut() {
   driveFileId = null;
   tasks = [];
   localStorage.removeItem('work_login_hint');
+  sessionStorage.removeItem('work_token');
   document.getElementById('app').classList.remove('visible');
   document.getElementById('auth-screen').style.display = 'flex';
 }
