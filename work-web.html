@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Work</title>
+
+<!-- ─── CONFIG ─────────────────────────────────────────────────────────────
+  Replace GOOGLE_CLIENT_ID below with your OAuth 2.0 Client ID from
+  https://console.cloud.google.com → APIs & Services → Credentials
+  Required scopes: https://www.googleapis.com/auth/drive
+──────────────────────────────────────────────────────────────────────────── -->
+<script>const GOOGLE_CLIENT_ID = 'YOUR_CLIENT_ID_HERE';</script>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #ffffff;
+  --bg-secondary: #f5f5f7;
+  --bg-tertiary: #e8e8ed;
+  --border: #d8d8dc;
+  --border-light: #efefef;
+  --text-primary: #1d1d1f;
+  --text-secondary: #6e6e73;
+  --text-tertiary: #aeaeb2;
+  --accent: #0071e3;
+  --accent-hover: #0077ed;
+  --p0: #ff3b30;
+  --p1: #ff9f0a;
+  --p2: #0071e3;
+  --p3: #aeaeb2;
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --max-width: 860px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── AUTH SCREEN ─────────────────────────────────────────────────────── */
+#auth-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 40px;
+  text-align: center;
+}
+.auth-title { font-size: 28px; font-weight: 600; letter-spacing: -0.5px; margin-bottom: 8px; }
+.auth-sub { font-size: 15px; color: var(--text-secondary); margin-bottom: 32px; }
+.btn-google {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 20px; border-radius: var(--radius);
+  border: 1px solid var(--border); background: #fff;
+  font-size: 14px; font-weight: 500; cursor: pointer;
+  font-family: inherit; color: var(--text-primary);
+  transition: background 0.15s, box-shadow 0.15s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.btn-google:hover { background: var(--bg-secondary); box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+.google-icon { width: 18px; height: 18px; }
+
+/* ─── APP ─────────────────────────────────────────────────────────────── */
+#app { display: none; flex-direction: column; min-height: 100vh; }
+#app.visible { display: flex; }
+
+.app-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 24px 12px;
+  border-bottom: 1px solid var(--border-light);
+  max-width: var(--max-width); width: 100%; margin: 0 auto;
+  box-sizing: border-box;
+}
+.header-left { display: flex; align-items: baseline; gap: 8px; }
+.app-title { font-size: 20px; font-weight: 600; letter-spacing: -0.3px; }
+.task-count { font-size: 13px; color: var(--text-tertiary); }
+.header-right { display: flex; align-items: center; gap: 10px; }
+.user-chip {
+  font-size: 12px; color: var(--text-secondary);
+  background: var(--bg-secondary); border-radius: 10px;
+  padding: 3px 10px; cursor: pointer;
+}
+.user-chip:hover { background: var(--bg-tertiary); }
+.sync-label { font-size: 12px; color: var(--text-tertiary); }
+.sync-label.saving { color: var(--p1); }
+.sync-label.saved { color: #34c759; }
+.sync-label.error { color: var(--p0); }
+.btn-primary {
+  background: var(--accent); color: #fff; border: none;
+  padding: 7px 14px; border-radius: var(--radius-sm);
+  font-size: 13px; font-weight: 500; cursor: pointer; font-family: inherit;
+  transition: background 0.15s;
+}
+.btn-primary:hover { background: var(--accent-hover); }
+
+.toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 24px; border-bottom: 1px solid var(--border-light);
+  max-width: var(--max-width); width: 100%; margin: 0 auto; gap: 12px;
+}
+.filter-tabs {
+  display: flex; gap: 2px; background: var(--bg-secondary);
+  padding: 3px; border-radius: var(--radius-sm); overflow-x: auto; flex-shrink: 0;
+}
+.filter-tab {
+  padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 500;
+  cursor: pointer; color: var(--text-secondary); border: none;
+  background: transparent; transition: all 0.15s; white-space: nowrap; font-family: inherit;
+}
+.filter-tab.active { background: #fff; color: var(--text-primary); box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+.sort-control { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+.sort-select {
+  font-size: 12px; color: var(--text-primary); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 4px 8px; background: #fff;
+  cursor: pointer; outline: none; font-family: inherit;
+}
+
+/* ─── LAYOUT ──────────────────────────────────────────────────────────── */
+.main-content {
+  display: flex; flex: 1; max-width: var(--max-width); width: 100%; margin: 0 auto;
+}
+.task-list-pane { flex: 1; padding: 4px 0 80px; position: relative; }
+.header-bar { border-bottom: 1px solid var(--border-light); }
+.header-bar > * { max-width: var(--max-width); width: 100%; margin: 0 auto; }
+
+/* ─── TASK ROWS ───────────────────────────────────────────────────────── */
+.task-row {
+  display: flex; align-items: center; padding: 9px 24px; gap: 10px;
+  cursor: pointer; border-bottom: 1px solid var(--border-light); transition: background 0.1s;
+}
+.task-row:hover { background: var(--bg-secondary); }
+.task-row.active { background: #e8f0fe; }
+.task-check {
+  width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all 0.15s; background: #fff; flex-shrink: 0;
+  font-size: 9px; font-weight: 700; color: transparent;
+}
+.task-check:hover { border-color: var(--accent); }
+.task-check.done { background: var(--text-tertiary); border-color: var(--text-tertiary); color: #fff; }
+.priority-label {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.3px;
+  padding: 1px 5px; border-radius: 4px; flex-shrink: 0; white-space: nowrap;
+}
+.p0 { background: #ffebee; color: var(--p0); }
+.p1 { background: #fff3e0; color: #c25e00; }
+.p2 { background: #e3f2fd; color: #1255a0; }
+.p3 { background: var(--bg-tertiary); color: var(--text-tertiary); }
+.task-main { flex: 1; min-width: 0; }
+.task-name { font-size: 14px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 450; }
+.task-name.done { color: var(--text-tertiary); text-decoration: line-through; }
+.task-sub { display: flex; align-items: center; gap: 6px; margin-top: 1px; overflow: hidden; }
+.tag-chip { font-size: 11px; padding: 1px 6px; border-radius: 10px; background: var(--bg-tertiary); color: var(--text-secondary); white-space: nowrap; flex-shrink: 0; }
+.task-row-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.status-badge { font-size: 11px; font-weight: 500; padding: 2px 7px; border-radius: 10px; white-space: nowrap; }
+.s-needs-details    { background: #fff3e0; color: #c25e00; }
+.s-ready-to-start   { background: #e3f2fd; color: #1255a0; }
+.s-in-progress      { background: #e8f5e9; color: #2e7d32; }
+.s-blocked          { background: #ffebee; color: #c62828; }
+.s-done             { background: var(--bg-secondary); color: var(--text-tertiary); }
+.deadline-chip { font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
+.deadline-chip.overdue { color: var(--p0); font-weight: 500; }
+.deadline-chip.soon    { color: var(--p1); }
+.owner-chip { font-size: 11px; color: var(--text-secondary); background: var(--bg-secondary); border-radius: 10px; padding: 1px 7px; white-space: nowrap; }
+
+/* ─── EMPTY STATE ─────────────────────────────────────────────────────── */
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 80px 40px; text-align: center; }
+.empty-icon { font-size: 40px; margin-bottom: 14px; }
+.empty-title { font-size: 16px; font-weight: 500; color: var(--text-secondary); margin-bottom: 5px; }
+.empty-desc { font-size: 13px; color: var(--text-tertiary); max-width: 240px; }
+
+/* ─── LOADING ─────────────────────────────────────────────────────────── */
+.loading-state { display: flex; align-items: center; justify-content: center; padding: 80px 40px; gap: 12px; color: var(--text-tertiary); font-size: 14px; }
+.spinner { width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ─── DETAIL PANEL ────────────────────────────────────────────────────── */
+.detail-panel {
+  width: 400px; border-left: 1px solid var(--border); display: flex;
+  flex-direction: column; overflow: hidden; flex-shrink: 0; background: #fff;
+  position: sticky; top: 0; height: 100vh; overflow-y: auto;
+}
+.detail-panel.hidden { display: none; }
+.detail-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; border-bottom: 1px solid var(--border-light);
+  position: sticky; top: 0; background: #fff; z-index: 1; flex-shrink: 0;
+}
+.detail-header-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-tertiary); }
+.detail-header-actions { display: flex; gap: 6px; }
+.btn-icon { width: 28px; height: 28px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; color: var(--text-secondary); transition: all 0.15s; font-family: inherit; }
+.btn-icon:hover { background: var(--bg-secondary); }
+.btn-icon.danger:hover { background: #ffebee; border-color: var(--p0); color: var(--p0); }
+.detail-scroll { flex: 1; padding: 16px; }
+
+/* ─── DETAIL FIELDS ───────────────────────────────────────────────────── */
+.d-field { margin-bottom: 14px; }
+.d-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-tertiary); margin-bottom: 4px; }
+.d-input { width: 100%; font-size: 14px; color: var(--text-primary); border: 1px solid transparent; border-radius: var(--radius-sm); padding: 5px 7px; background: transparent; font-family: inherit; outline: none; transition: all 0.15s; resize: none; }
+.d-input:hover { background: var(--bg-secondary); border-color: var(--border); }
+.d-input:focus { background: #fff; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,113,227,0.1); }
+.d-name-input { font-size: 17px; font-weight: 600; letter-spacing: -0.2px; padding: 4px 7px; margin-bottom: 4px; }
+.d-select, .d-date { width: 100%; font-size: 13px; color: var(--text-primary); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 5px 7px; background: #fff; cursor: pointer; outline: none; font-family: inherit; transition: border-color 0.15s; }
+.d-select:focus, .d-date:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,113,227,0.1); }
+.d-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.d-section { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin: 18px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border-light); }
+
+/* TAGS */
+.tags-wrap { display: flex; flex-wrap: wrap; gap: 4px; padding: 5px 7px; border: 1px solid var(--border); border-radius: var(--radius-sm); min-height: 34px; cursor: text; background: #fff; transition: border-color 0.15s; align-items: center; }
+.tags-wrap:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,113,227,0.1); }
+.tag-item { display: flex; align-items: center; gap: 3px; background: var(--bg-tertiary); color: var(--text-secondary); font-size: 12px; padding: 2px 6px; border-radius: 10px; }
+.tag-remove { cursor: pointer; color: var(--text-tertiary); font-size: 12px; transition: color 0.1s; }
+.tag-remove:hover { color: var(--p0); }
+.tag-text-input { border: none; outline: none; font-size: 13px; min-width: 70px; flex: 1; font-family: inherit; background: transparent; color: var(--text-primary); }
+
+/* SUBTASKS */
+.subtask-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--border-light); }
+.subtask-row:last-child { border-bottom: none; }
+.subtask-check { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; font-size: 9px; font-weight: 700; color: transparent; background: #fff; }
+.subtask-check:hover { border-color: var(--accent); }
+.subtask-check.done { background: var(--text-tertiary); border-color: var(--text-tertiary); color: #fff; }
+.subtask-name { flex: 1; font-size: 13px; color: var(--text-secondary); }
+.subtask-name.done { text-decoration: line-through; color: var(--text-tertiary); }
+.subtask-del { opacity: 0; cursor: pointer; color: var(--text-tertiary); font-size: 14px; }
+.subtask-row:hover .subtask-del { opacity: 1; }
+.subtask-del:hover { color: var(--p0); }
+.add-subtask-row { display: flex; gap: 6px; margin-top: 8px; }
+.add-subtask-input { flex: 1; font-size: 13px; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 5px 8px; font-family: inherit; outline: none; color: var(--text-primary); background: #fff; }
+
+.btn-sm { padding: 5px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 12px; font-weight: 500; color: var(--text-secondary); font-family: inherit; transition: all 0.15s; }
+.btn-sm:hover { background: var(--bg-secondary); color: var(--text-primary); }
+.btn-sm.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn-sm.primary:hover { background: var(--accent-hover); }
+
+/* ACTIVITY */
+.activity-entry { display: flex; gap: 9px; padding: 6px 0; border-bottom: 1px solid var(--border-light); }
+.activity-entry:last-child { border-bottom: none; }
+.activity-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border); flex-shrink: 0; margin-top: 6px; }
+.activity-text { font-size: 13px; color: var(--text-secondary); }
+.activity-time { font-size: 11px; color: var(--text-tertiary); margin-top: 1px; }
+.note-input-wrap { margin-top: 10px; }
+.note-textarea { width: 100%; font-size: 13px; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 7px 9px; font-family: inherit; outline: none; resize: none; color: var(--text-primary); background: #fff; transition: border-color 0.15s; }
+.note-textarea:focus { border-color: var(--accent); }
+.note-actions { display: flex; justify-content: flex-end; margin-top: 5px; }
+
+/* SAVE BAR */
+.save-bar { display: flex; align-items: center; justify-content: space-between; padding: 9px 16px; border-top: 1px solid var(--border-light); background: var(--bg-secondary); position: sticky; bottom: 0; }
+.save-bar.hidden { display: none; }
+.save-bar-label { font-size: 12px; color: var(--text-secondary); }
+.save-bar-actions { display: flex; gap: 6px; }
+
+/* MODAL */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.25); display: flex; align-items: flex-start; justify-content: center; z-index: 200; backdrop-filter: blur(2px); padding-top: 80px; }
+.modal-overlay.hidden { display: none; }
+.modal-box { background: #fff; border-radius: var(--radius-lg); padding: 20px; width: 520px; max-width: 90vw; box-shadow: 0 16px 48px rgba(0,0,0,0.15); }
+.modal-title { font-size: 15px; font-weight: 600; margin-bottom: 14px; }
+.modal-hint { font-size: 12px; color: var(--text-tertiary); margin-bottom: 10px; }
+.modal-name-input { width: 100%; font-size: 15px; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 9px 11px; font-family: inherit; outline: none; margin-bottom: 10px; color: var(--text-primary); transition: border-color 0.15s; }
+.modal-name-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,113,227,0.1); }
+.modal-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+.modal-select, .modal-date, .modal-input { font-size: 13px; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 7px 9px; background: #fff; font-family: inherit; outline: none; width: 100%; color: var(--text-primary); }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+
+.error-toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1d1d1f; color: #fff; padding: 10px 16px; border-radius: var(--radius); font-size: 13px; z-index: 500; max-width: 90vw; text-align: center; box-shadow: 0 4px 16px rgba(0,0,0,0.2); }
+.error-toast.hidden { display: none; }
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bg-tertiary); border-radius: 10px; }
+</style>
+</head>
+<body>
+
+<!-- ─── AUTH SCREEN ─────────────────────────────────────────────────────── -->
+<div id="auth-screen">
+  <div class="auth-title">Work</div>
+  <div class="auth-sub">Sign in with Google to access your task list.</div>
+  <button class="btn-google" onclick="signIn()">
+    <svg class="google-icon" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+    Sign in with Google
+  </button>
+</div>
+
+<!-- ─── APP ─────────────────────────────────────────────────────────────── -->
+<div id="app">
+  <div class="header-bar">
+    <div class="app-header">
+      <div class="header-left">
+        <span class="app-title">Work</span>
+        <span class="task-count" id="task-count-label"></span>
+      </div>
+      <div class="header-right">
+        <span class="sync-label" id="sync-label"></span>
+        <span class="user-chip" id="user-chip" onclick="signOut()"></span>
+        <button class="btn-primary" onclick="openQuickAdd()">+ New Task</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="header-bar">
+    <div class="toolbar">
+      <div class="filter-tabs">
+        <button class="filter-tab active" onclick="setFilter('all', this)">All</button>
+        <button class="filter-tab" onclick="setFilter('NEEDS_DETAILS', this)">Needs Details</button>
+        <button class="filter-tab" onclick="setFilter('READY_TO_START', this)">Ready</button>
+        <button class="filter-tab" onclick="setFilter('IN_PROGRESS', this)">In Progress</button>
+        <button class="filter-tab" onclick="setFilter('BLOCKED', this)">Blocked</button>
+        <button class="filter-tab" onclick="setFilter('DONE', this)">Done</button>
+      </div>
+      <div class="sort-control">
+        <span>Sort:</span>
+        <select class="sort-select" onchange="setSort(this.value)">
+          <option value="recommended">Recommended</option>
+          <option value="deadline">Deadline</option>
+          <option value="priority">Priority</option>
+          <option value="created">Created</option>
+          <option value="updated">Updated</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="main-content">
+    <div class="task-list-pane" id="task-list-pane">
+      <div class="loading-state" id="loading-state">
+        <div class="spinner"></div>
+        <span>Loading tasks…</span>
+      </div>
+    </div>
+    <div class="detail-panel hidden" id="detail-panel">
+      <div class="detail-header">
+        <span class="detail-header-title">Task Detail</span>
+        <div class="detail-header-actions">
+          <button class="btn-icon danger" title="Delete" onclick="deleteSelectedTask()">🗑</button>
+          <button class="btn-icon" title="Close" onclick="closeDetail()">✕</button>
+        </div>
+      </div>
+      <div class="detail-scroll" id="detail-scroll"></div>
+      <div class="save-bar hidden" id="save-bar">
+        <span class="save-bar-label">Unsaved changes</span>
+        <div class="save-bar-actions">
+          <button class="btn-sm" onclick="discardChanges()">Discard</button>
+          <button class="btn-sm primary" onclick="saveChanges()">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- QUICK ADD -->
+<div class="modal-overlay hidden" id="quick-add-modal" onclick="handleModalClick(event)">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-title">New Task</div>
+    <p class="modal-hint">Enter to save · Esc to cancel · Details can be added after</p>
+    <input class="modal-name-input" id="qa-name" placeholder="Task name…" maxlength="50" onkeydown="handleQAKey(event)">
+    <div class="modal-row">
+      <select class="modal-select" id="qa-priority">
+        <option value="">Priority</option>
+        <option value="p0">P0 — Critical</option>
+        <option value="p1">P1 — High</option>
+        <option value="p2" selected>P2 — Normal</option>
+        <option value="p3">P3 — Low</option>
+      </select>
+      <input class="modal-date" id="qa-deadline" type="date">
+      <input class="modal-input" id="qa-owner" placeholder="Owner" maxlength="40">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-sm" onclick="closeQuickAdd()">Cancel</button>
+      <button class="btn-sm primary" onclick="submitQuickAdd()">Add Task</button>
+    </div>
+  </div>
+</div>
+
+<div class="error-toast hidden" id="error-toast"></div>
+
+<script>
+// ─── DRIVE CONFIG ──────────────────────────────────────────────────────────
+const FILE_NAME = 'work-tasks-data';
+const DRIVE_API = 'https://www.googleapis.com/drive/v3/files';
+const UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3/files';
+let accessToken = null;
+let tokenClient = null;
+let driveFileId = null;
+let saveInProgress = false;
+
+// ─── STATE ─────────────────────────────────────────────────────────────────
+let tasks = [];
+let selectedId = null;
+let draft = null;
+let hasChanges = false;
+let currentFilter = 'all';
+let currentSort = 'recommended';
+
+// ─── AUTH ──────────────────────────────────────────────────────────────────
+window.onload = () => {
+  if (GOOGLE_CLIENT_ID === 'YOUR_CLIENT_ID_HERE') {
+    document.getElementById('auth-screen').innerHTML = `
+      <div class="auth-title">Setup Required</div>
+      <div class="auth-sub" style="max-width:400px">
+        Open <code>work-web.html</code> and replace <code>YOUR_CLIENT_ID_HERE</code>
+        with your Google OAuth Client ID. See the comment at the top of the file for instructions.
+      </div>`;
+    return;
+  }
+
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_ID,
+    scope: 'https://www.googleapis.com/auth/drive',
+    callback: async (resp) => {
+      if (resp.error) { showToast('Sign-in error: ' + resp.error); return; }
+      accessToken = resp.access_token;
+      showApp();
+      await loadFromDrive();
+    }
+  });
+};
+
+function signIn() { tokenClient?.requestAccessToken(); }
+
+function signOut() {
+  if (!confirm('Sign out?')) return;
+  google.accounts.oauth2.revoke(accessToken, () => {});
+  accessToken = null;
+  driveFileId = null;
+  tasks = [];
+  document.getElementById('app').classList.remove('visible');
+  document.getElementById('auth-screen').style.display = 'flex';
+}
+
+function showApp() {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app').classList.add('visible');
+}
+
+// ─── DRIVE API ─────────────────────────────────────────────────────────────
+async function driveGet(url) {
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!res.ok) throw new Error(`Drive API error ${res.status}`);
+  return res;
+}
+
+async function drivePatch(fileId, content) {
+  const meta = { name: FILE_NAME, mimeType: 'application/json' };
+  const body = new FormData();
+  body.append('metadata', new Blob([JSON.stringify(meta)], { type: 'application/json' }));
+  body.append('file', new Blob([content], { type: 'application/json' }));
+  const url = fileId
+    ? `${UPLOAD_API}/${fileId}?uploadType=multipart`
+    : `${UPLOAD_API}?uploadType=multipart`;
+  const method = fileId ? 'PATCH' : 'POST';
+  const res = await fetch(url, { method, headers: { Authorization: `Bearer ${accessToken}` }, body });
+  if (!res.ok) throw new Error(`Drive write error ${res.status}`);
+  return res.json();
+}
+
+async function findFile() {
+  const q = encodeURIComponent(`name='${FILE_NAME}' and trashed=false and mimeType='application/json'`);
+  const res = await driveGet(`${DRIVE_API}?q=${q}&fields=files(id,name,modifiedTime)&pageSize=5`);
+  const data = await res.json();
+  return (data.files || [])[0] || null;
+}
+
+// ─── LOAD ──────────────────────────────────────────────────────────────────
+async function loadFromDrive() {
+  setSync('');
+  document.getElementById('loading-state').style.display = 'flex';
+  try {
+    const file = await findFile();
+    if (!file) {
+      driveFileId = null; tasks = [];
+    } else {
+      driveFileId = file.id;
+      const res = await driveGet(`${DRIVE_API}/${driveFileId}?alt=media`);
+      const data = await res.json();
+      tasks = Array.isArray(data.tasks) ? data.tasks : [];
+    }
+    setSync('saved', 'Loaded');
+    setTimeout(() => setSync('', ''), 2000);
+  } catch(e) {
+    console.error(e);
+    setSync('error', 'Load failed');
+    showToast('Could not load tasks: ' + e.message);
+    tasks = [];
+  }
+  document.getElementById('loading-state').style.display = 'none';
+  renderList();
+}
+
+// ─── SAVE ──────────────────────────────────────────────────────────────────
+async function saveToDrive() {
+  if (saveInProgress) return;
+  saveInProgress = true;
+  setSync('saving', 'Saving…');
+  try {
+    const payload = JSON.stringify({ tasks, meta: { version: '1.0', updated: new Date().toISOString() } });
+    const result = await drivePatch(driveFileId, payload);
+    driveFileId = result.id;
+    setSync('saved', 'Saved');
+    setTimeout(() => setSync('', ''), 2000);
+  } catch(e) {
+    console.error(e);
+    setSync('error', 'Save failed');
+    showToast('Could not save: ' + e.message);
+  } finally {
+    saveInProgress = false;
+  }
+}
+
+// ─── UTILS ─────────────────────────────────────────────────────────────────
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function now() { return new Date().toISOString(); }
+function setSync(cls, msg) {
+  const el = document.getElementById('sync-label');
+  el.className = 'sync-label' + (cls ? ' ' + cls : '');
+  el.textContent = msg || '';
+}
+function showToast(msg) {
+  const el = document.getElementById('error-toast');
+  el.textContent = msg; el.classList.remove('hidden');
+  setTimeout(() => el.classList.add('hidden'), 4000);
+}
+
+function fmtDate(iso) {
+  if (!iso) return '';
+  const today = new Date(); today.setHours(0,0,0,0);
+  const d = new Date(iso + 'T00:00:00'); d.setHours(0,0,0,0);
+  const diff = Math.round((d - today) / 86400000);
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Tomorrow';
+  if (diff === -1) return 'Yesterday';
+  return new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+function isOverdue(t) {
+  if (!t.deadline || t.status === 'DONE') return false;
+  const d = new Date(t.deadline + 'T00:00:00'), today = new Date(); today.setHours(0,0,0,0);
+  return d < today;
+}
+function isSoon(t) {
+  if (!t.deadline || t.status === 'DONE') return false;
+  const d = new Date(t.deadline + 'T00:00:00'), today = new Date(); today.setHours(0,0,0,0);
+  return Math.round((d - today) / 86400000) <= 3;
+}
+function priorityOrder(p) { return { p0:0,p1:1,p2:2,p3:3 }[p] ?? 4; }
+function recommendedScore(t) {
+  if (t.status === 'DONE') return 9999;
+  if (t.status === 'BLOCKED') return 500 + priorityOrder(t.priority);
+  let s = priorityOrder(t.priority) * 10;
+  if (t.deadline) {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const diff = Math.round((new Date(t.deadline + 'T00:00:00') - today) / 86400000);
+    if (diff < 0) s -= 20; else if (diff === 0) s -= 15;
+    else if (diff <= 1) s -= 12; else if (diff <= 3) s -= 8; else if (diff <= 7) s -= 4;
+  } else { s += 5; }
+  return s;
+}
+function statusLabel(s) { return { NEEDS_DETAILS:'Needs Details',READY_TO_START:'Ready to Start',IN_PROGRESS:'In Progress',BLOCKED:'Blocked',DONE:'Done' }[s] || s; }
+function statusClass(s) { return { NEEDS_DETAILS:'s-needs-details',READY_TO_START:'s-ready-to-start',IN_PROGRESS:'s-in-progress',BLOCKED:'s-blocked',DONE:'s-done' }[s] || ''; }
+function logActivity(task, desc) { if (!task.activityLog) task.activityLog = []; task.activityLog.unshift({ id:uid(), ts:now(), text:desc }); }
+function esc(s) { if (!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ─── FILTER / SORT ─────────────────────────────────────────────────────────
+function getVisible() {
+  let list = tasks.filter(t => !t.parentId);
+  if (currentFilter !== 'all') list = list.filter(t => t.status === currentFilter);
+  list.sort((a, b) => {
+    if (currentSort === 'recommended') return recommendedScore(a) - recommendedScore(b);
+    if (currentSort === 'deadline') { if (!a.deadline && !b.deadline) return 0; if (!a.deadline) return 1; if (!b.deadline) return -1; return a.deadline.localeCompare(b.deadline); }
+    if (currentSort === 'priority') { const d = priorityOrder(a.priority) - priorityOrder(b.priority); return d || (a.deadline||'').localeCompare(b.deadline||''); }
+    if (currentSort === 'updated') return (b.updatedDate||'').localeCompare(a.updatedDate||'');
+    return (b.createdDate||'').localeCompare(a.createdDate||'');
+  });
+  return list;
+}
+
+// ─── RENDER LIST ───────────────────────────────────────────────────────────
+function renderList() {
+  const pane = document.getElementById('task-list-pane');
+  const visible = getVisible();
+  const total = tasks.filter(t => !t.parentId && t.status !== 'DONE').length;
+  document.getElementById('task-count-label').textContent = total ? `${total} open` : '';
+
+  const loading = document.getElementById('loading-state');
+
+  if (!visible.length) {
+    pane.innerHTML = ''; pane.appendChild(loading);
+    pane.insertAdjacentHTML('beforeend', `<div class="empty-state"><div class="empty-icon">✓</div><div class="empty-title">${currentFilter==='all'?'No tasks yet':'Nothing here'}</div><div class="empty-desc">${currentFilter==='all'?'Press N or click + New Task to get started.':'No tasks match this filter.'}</div></div>`);
+    return;
+  }
+
+  const html = visible.map(task => {
+    const overdue = isOverdue(task), soon = !overdue && isSoon(task), isDone = task.status === 'DONE';
+    const subs = (task.subtaskIds||[]).length ? tasks.filter(t => task.subtaskIds.includes(t.id)) : [];
+    const tags = (task.tags||[]).slice(0,2).map(t => `<span class="tag-chip">${esc(t)}</span>`).join('');
+    const subBadge = subs.length ? `<span class="tag-chip" style="background:#f0f0f5">${subs.filter(s=>s.status==='DONE').length}/${subs.length}</span>` : '';
+    const meta = [tags, subBadge].filter(Boolean).join('');
+    return `<div class="task-row${selectedId===task.id?' active':''}" onclick="selectTask('${task.id}')">
+      <div class="task-check${isDone?' done':''}" onclick="event.stopPropagation();toggleDone('${task.id}')">${isDone?'✓':''}</div>
+      <span class="priority-label ${task.priority||'p3'}">${(task.priority||'p3').toUpperCase()}</span>
+      <div class="task-main">
+        <div class="task-name${isDone?' done':''}">${esc(task.name)}</div>
+        ${meta?`<div class="task-sub">${meta}</div>`:''}
+      </div>
+      <div class="task-row-right">
+        ${task.deadline?`<span class="deadline-chip${overdue?' overdue':soon?' soon':''}">${fmtDate(task.deadline)}</span>`:''}
+        ${!isDone?`<span class="status-badge ${statusClass(task.status)}">${statusLabel(task.status)}</span>`:''}
+        ${task.owner?`<span class="owner-chip">${esc(task.owner)}</span>`:''}
+      </div>
+    </div>`;
+  }).join('');
+
+  pane.innerHTML = ''; pane.appendChild(loading);
+  pane.insertAdjacentHTML('beforeend', html);
+}
+
+// ─── TASK SELECTION ────────────────────────────────────────────────────────
+function selectTask(id) {
+  if (hasChanges && selectedId && selectedId !== id && !confirm('Discard unsaved changes?')) return;
+  selectedId = id; hasChanges = false;
+  draft = JSON.parse(JSON.stringify(tasks.find(t => t.id === id)));
+  renderList(); renderDetail();
+  document.getElementById('detail-panel').classList.remove('hidden');
+}
+function closeDetail() {
+  if (hasChanges && !confirm('Discard unsaved changes?')) return;
+  selectedId = null; draft = null; hasChanges = false;
+  document.getElementById('detail-panel').classList.add('hidden');
+  renderList();
+}
+
+// ─── RENDER DETAIL ─────────────────────────────────────────────────────────
+function renderDetail() {
+  if (!draft) return;
+  const t = draft;
+  const tagsHtml = (t.tags||[]).map((tag,i) => `<span class="tag-item">${esc(tag)}<span class="tag-remove" onclick="removeTag(${i})">×</span></span>`).join('');
+  const allTasks = tasks.filter(t2 => t2.id !== t.id && !t2.parentId);
+  const depOptions = allTasks.map(t2 => `<option value="${t2.id}">${esc(t2.name)}</option>`).join('');
+  const deps = (t.dependencyIds||[]).map(depId => {
+    const dep = tasks.find(t2 => t2.id === depId);
+    return dep ? `<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border-light);font-size:13px;color:var(--text-secondary)"><span>${esc(dep.name)}</span><span class="tag-remove" onclick="removeDep('${depId}')" style="cursor:pointer">×</span></div>` : '';
+  }).join('');
+  const subtaskObjs = (t.subtaskIds||[]).map(sid => tasks.find(s => s.id === sid)).filter(Boolean);
+  const subtasksHtml = subtaskObjs.map(st =>
+    `<div class="subtask-row"><div class="subtask-check${st.status==='DONE'?' done':''}" onclick="toggleSubtask('${st.id}')">${st.status==='DONE'?'✓':''}</div><span class="subtask-name${st.status==='DONE'?' done':''}">${esc(st.name)}</span><span class="subtask-del" onclick="deleteSubtask('${st.id}')">×</span></div>`
+  ).join('');
+  const actHtml = (t.activityLog||[]).slice(0,20).map(e =>
+    `<div class="activity-entry"><div class="activity-dot"></div><div><div class="activity-text">${esc(e.text)}</div><div class="activity-time">${new Date(e.ts).toLocaleString()}</div></div></div>`
+  ).join('') || '<div style="font-size:13px;color:var(--text-tertiary);padding:4px 0">No activity yet.</div>';
+
+  document.getElementById('detail-scroll').innerHTML = `
+    <div class="d-field"><textarea class="d-input d-name-input" id="d-name" rows="1" maxlength="50" oninput="markChanged('name',this.value);autoResize(this)">${esc(t.name)}</textarea></div>
+    <div class="d-row">
+      <div class="d-field" style="margin:0"><div class="d-label">Status</div>
+        <select class="d-select" id="d-status" onchange="markChanged('status',this.value)">
+          <option value="NEEDS_DETAILS"${t.status==='NEEDS_DETAILS'?' selected':''}>Needs Details</option>
+          <option value="READY_TO_START"${t.status==='READY_TO_START'?' selected':''}>Ready to Start</option>
+          <option value="IN_PROGRESS"${t.status==='IN_PROGRESS'?' selected':''}>In Progress</option>
+          <option value="BLOCKED"${t.status==='BLOCKED'?' selected':''}>Blocked</option>
+          <option value="DONE"${t.status==='DONE'?' selected':''}>Done</option>
+        </select></div>
+      <div class="d-field" style="margin:0"><div class="d-label">Priority</div>
+        <select class="d-select" id="d-priority" onchange="markChanged('priority',this.value)">
+          <option value="p0"${t.priority==='p0'?' selected':''}>P0 — Critical</option>
+          <option value="p1"${t.priority==='p1'?' selected':''}>P1 — High</option>
+          <option value="p2"${t.priority==='p2'?' selected':''}>P2 — Normal</option>
+          <option value="p3"${t.priority==='p3'?' selected':''}>P3 — Low</option>
+        </select></div>
+    </div>
+    <div class="d-row">
+      <div class="d-field" style="margin:0"><div class="d-label">Deadline</div><input class="d-date" type="date" id="d-deadline" value="${t.deadline||''}" onchange="markChanged('deadline',this.value)"></div>
+      <div class="d-field" style="margin:0"><div class="d-label">Start Date</div><input class="d-date" type="date" id="d-startdate" value="${t.startDate||''}" onchange="markChanged('startDate',this.value)"></div>
+    </div>
+    <div class="d-row">
+      <div class="d-field" style="margin:0"><div class="d-label">Owner</div><input class="d-input" style="border:1px solid var(--border)" id="d-owner" value="${esc(t.owner||'')}" placeholder="—" maxlength="40" oninput="markChanged('owner',this.value)"></div>
+      <div class="d-field" style="margin:0"><div class="d-label">Requestor</div><input class="d-input" style="border:1px solid var(--border)" id="d-requestor" value="${esc(t.requestor||'')}" placeholder="—" maxlength="40" oninput="markChanged('requestor',this.value)"></div>
+    </div>
+    <div class="d-row">
+      <div class="d-field" style="margin:0"><div class="d-label">LOE</div>
+        <select class="d-select" id="d-loe" onchange="handleLoeChange(this.value)">
+          <option value="">—</option>
+          <option value="30min"${t.loe==='30min'?' selected':''}>30 min</option>
+          <option value="1hr"${t.loe==='1hr'?' selected':''}>1 hr</option>
+          <option value="2hrs"${t.loe==='2hrs'?' selected':''}>2 hrs</option>
+          <option value="4hrs"${t.loe==='4hrs'?' selected':''}>4 hrs</option>
+          <option value="1day"${t.loe==='1day'?' selected':''}>1 day</option>
+          <option value="2-3days"${t.loe==='2-3days'?' selected':''}>2–3 days</option>
+          <option value="1week"${t.loe==='1week'?' selected':''}>1 week</option>
+          <option value="1+weeks"${t.loe==='1+weeks'?' selected':''}>1+ weeks</option>
+          <option value="complex"${t.loe==='complex'?' selected':''}>Complex →</option>
+        </select></div>
+      <div class="d-field" style="margin:0"><div class="d-label">Created</div>
+        <div style="font-size:13px;color:var(--text-secondary);padding:6px 0">${t.createdDate?new Date(t.createdDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'—'}</div></div>
+    </div>
+    <div class="d-field" id="loe-notes-wrap" style="${t.loe==='complex'?'':'display:none'}">
+      <div class="d-label">LOE Notes</div>
+      <textarea class="d-input" style="border:1px solid var(--border)" id="d-loe-notes" rows="2" oninput="markChanged('loeNotes',this.value)">${esc(t.loeNotes||'')}</textarea>
+    </div>
+    <div class="d-field"><div class="d-label">Tags</div>
+      <div class="tags-wrap" onclick="focusTagInput()">
+        <span id="tag-items">${tagsHtml}</span>
+        <input class="tag-text-input" id="tag-input" placeholder="${(t.tags||[]).length?'':'Add tag…'}" onkeydown="handleTagKey(event)">
+      </div></div>
+    <div class="d-field"><div class="d-label">Details</div>
+      <textarea class="d-input" style="border:1px solid var(--border);min-height:80px" id="d-details" rows="4" placeholder="Add details, context, or notes…" oninput="markChanged('details',this.value)">${esc(t.details||'')}</textarea></div>
+    <div class="d-section">Subtasks</div>
+    <div id="subtasks-list">${subtasksHtml}</div>
+    <div class="add-subtask-row">
+      <input class="add-subtask-input" id="subtask-input" placeholder="Add subtask…" onkeydown="if(event.key==='Enter')addSubtask()">
+      <button class="btn-sm" onclick="addSubtask()">Add</button>
+    </div>
+    <div class="d-section">Blocked By</div>
+    <div>${deps}</div>
+    ${allTasks.length?`<div style="display:flex;gap:6px;margin-top:8px"><select class="d-select" id="dep-select" style="font-size:13px"><option value="">Select a task…</option>${depOptions}</select><button class="btn-sm" onclick="addDep()">Add</button></div>`:''}
+    <div class="d-section">Activity</div>
+    <div>${actHtml}</div>
+    <div class="note-input-wrap">
+      <textarea class="note-textarea" id="note-input" rows="2" placeholder="Add a note…"></textarea>
+      <div class="note-actions"><button class="btn-sm primary" onclick="addNote()">Add Note</button></div>
+    </div>
+    <div style="height:20px"></div>`;
+
+  const nameEl = document.getElementById('d-name');
+  if (nameEl) autoResize(nameEl);
+  updateSaveBar();
+}
+
+// ─── DETAIL HELPERS ────────────────────────────────────────────────────────
+function markChanged(f, v) { if (!draft) return; draft[f] = v; hasChanges = true; updateSaveBar(); }
+function updateSaveBar() { const b = document.getElementById('save-bar'); if (b) b.classList.toggle('hidden', !hasChanges); }
+function autoResize(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }
+function focusTagInput() { document.getElementById('tag-input')?.focus(); }
+function handleTagKey(e) {
+  const inp = e.target;
+  if ((e.key==='Enter'||e.key===',') && inp.value.trim()) {
+    e.preventDefault();
+    const tag = inp.value.trim().replace(/,/g,'');
+    if (!draft.tags) draft.tags = [];
+    if (!draft.tags.includes(tag)) { draft.tags.push(tag); hasChanges = true; updateSaveBar(); refreshTags(); }
+    inp.value = '';
+  } else if (e.key==='Backspace' && !inp.value && draft.tags?.length) {
+    draft.tags.pop(); hasChanges = true; updateSaveBar(); refreshTags();
+  }
+}
+function removeTag(i) { draft.tags.splice(i,1); hasChanges = true; updateSaveBar(); refreshTags(); }
+function refreshTags() {
+  const el = document.getElementById('tag-items');
+  if (el) el.innerHTML = (draft.tags||[]).map((t,i) => `<span class="tag-item">${esc(t)}<span class="tag-remove" onclick="removeTag(${i})">×</span></span>`).join('');
+}
+function handleLoeChange(v) { draft.loe = v; hasChanges = true; updateSaveBar(); const w = document.getElementById('loe-notes-wrap'); if (w) w.style.display = v==='complex'?'':'none'; }
+function addSubtask() {
+  const inp = document.getElementById('subtask-input'), name = inp?.value.trim(); if (!name) return;
+  const sub = makeTask(name); sub.parentId = draft.id; sub.status = 'READY_TO_START';
+  tasks.push(sub); if (!draft.subtaskIds) draft.subtaskIds = []; draft.subtaskIds.push(sub.id);
+  hasChanges = true; saveToDrive(); inp.value = ''; renderDetail(); renderList();
+}
+function toggleSubtask(sid) {
+  const sub = tasks.find(t => t.id === sid); if (!sub) return;
+  const prev = sub.status;
+  sub.status = sub.status==='DONE'?'READY_TO_START':'DONE'; sub.updatedDate = now();
+  if (sub.status==='DONE') sub.completedDate = now();
+  logActivity(sub, `Status: ${statusLabel(prev)} → ${statusLabel(sub.status)}`);
+  saveToDrive(); renderDetail(); renderList();
+}
+function deleteSubtask(sid) {
+  if (!confirm('Delete subtask?')) return;
+  tasks = tasks.filter(t => t.id !== sid);
+  if (draft.subtaskIds) draft.subtaskIds = draft.subtaskIds.filter(id => id !== sid);
+  const parent = tasks.find(t => t.id === draft.id);
+  if (parent?.subtaskIds) parent.subtaskIds = parent.subtaskIds.filter(id => id !== sid);
+  saveToDrive(); renderDetail(); renderList();
+}
+function addDep() {
+  const sel = document.getElementById('dep-select'), depId = sel?.value; if (!depId) return;
+  if (!draft.dependencyIds) draft.dependencyIds = [];
+  if (!draft.dependencyIds.includes(depId)) { draft.dependencyIds.push(depId); hasChanges = true; updateSaveBar(); renderDetail(); }
+  sel.value = '';
+}
+function removeDep(depId) { draft.dependencyIds = (draft.dependencyIds||[]).filter(id => id !== depId); hasChanges = true; updateSaveBar(); renderDetail(); }
+function addNote() {
+  const inp = document.getElementById('note-input'), text = inp?.value.trim(); if (!text) return;
+  const task = tasks.find(t => t.id === draft.id);
+  if (task) { logActivity(task, `Note: ${text}`); saveToDrive(); }
+  if (!draft.activityLog) draft.activityLog = [];
+  draft.activityLog.unshift({ id:uid(), ts:now(), text:`Note: ${text}` });
+  inp.value = ''; renderDetail();
+}
+
+// ─── SAVE / DISCARD ────────────────────────────────────────────────────────
+function saveChanges() {
+  if (!draft) return;
+  draft.name = document.getElementById('d-name')?.value.trim() || draft.name;
+  draft.details = document.getElementById('d-details')?.value || draft.details;
+  draft.status = document.getElementById('d-status')?.value || draft.status;
+  draft.priority = document.getElementById('d-priority')?.value || draft.priority;
+  draft.deadline = document.getElementById('d-deadline')?.value || draft.deadline;
+  draft.startDate = document.getElementById('d-startdate')?.value || draft.startDate;
+  draft.owner = document.getElementById('d-owner')?.value.trim() || draft.owner;
+  draft.requestor = document.getElementById('d-requestor')?.value.trim() || draft.requestor;
+  draft.loe = document.getElementById('d-loe')?.value || draft.loe;
+  draft.loeNotes = document.getElementById('d-loe-notes')?.value || draft.loeNotes;
+
+  const idx = tasks.findIndex(t => t.id === draft.id); if (idx === -1) return;
+  const prev = tasks[idx];
+
+  if (draft.status === 'NEEDS_DETAILS' && draft.details?.trim() && !prev.details?.trim()) {
+    if (confirm('Details added — move to "Ready to Start"?')) {
+      draft.status = 'READY_TO_START';
+      const sel = document.getElementById('d-status'); if (sel) sel.value = 'READY_TO_START';
+    }
+  }
+
+  if (prev.status !== draft.status) logActivity(draft, `Status: ${statusLabel(prev.status)} → ${statusLabel(draft.status)}`);
+  if (prev.priority !== draft.priority) logActivity(draft, `Priority: ${prev.priority?.toUpperCase()} → ${draft.priority?.toUpperCase()}`);
+  if (prev.deadline !== draft.deadline) logActivity(draft, `Deadline: ${prev.deadline||'—'} → ${draft.deadline||'—'}`);
+  if (prev.owner !== draft.owner) logActivity(draft, `Owner: ${prev.owner||'—'} → ${draft.owner||'—'}`);
+
+  if (draft.status === 'DONE' && !draft.completedDate) draft.completedDate = now();
+  if (draft.status !== 'DONE') draft.completedDate = null;
+  draft.updatedDate = now();
+  tasks[idx] = { ...draft };
+  hasChanges = false; saveToDrive(); renderList(); renderDetail();
+}
+function discardChanges() {
+  const orig = tasks.find(t => t.id === selectedId); if (!orig) return;
+  draft = JSON.parse(JSON.stringify(orig)); hasChanges = false; renderDetail();
+}
+
+// ─── TOGGLE DONE ───────────────────────────────────────────────────────────
+function toggleDone(id) {
+  const task = tasks.find(t => t.id === id); if (!task) return;
+  const prev = task.status;
+  task.status = task.status==='DONE'?'READY_TO_START':'DONE'; task.updatedDate = now();
+  if (task.status==='DONE') task.completedDate = now(); else task.completedDate = null;
+  logActivity(task, `Status: ${statusLabel(prev)} → ${statusLabel(task.status)}`);
+  saveToDrive();
+  if (selectedId === id) { draft = JSON.parse(JSON.stringify(task)); hasChanges = false; renderDetail(); }
+  renderList();
+}
+
+// ─── DELETE ────────────────────────────────────────────────────────────────
+function deleteSelectedTask() {
+  if (!selectedId) return;
+  const task = tasks.find(t => t.id === selectedId);
+  if (!confirm(`Delete "${task?.name}"?`)) return;
+  const sids = task?.subtaskIds || [];
+  tasks = tasks.filter(t => t.id !== selectedId && !sids.includes(t.id));
+  tasks.forEach(t => { if (t.dependencyIds) t.dependencyIds = t.dependencyIds.filter(id => id !== selectedId); });
+  saveToDrive(); selectedId = null; draft = null; hasChanges = false;
+  document.getElementById('detail-panel').classList.add('hidden');
+  renderList();
+}
+
+// ─── FILTER / SORT ─────────────────────────────────────────────────────────
+function setFilter(f, el) { currentFilter = f; document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active')); el.classList.add('active'); renderList(); }
+function setSort(v) { currentSort = v; renderList(); }
+
+// ─── QUICK ADD ─────────────────────────────────────────────────────────────
+function openQuickAdd() { document.getElementById('quick-add-modal').classList.remove('hidden'); setTimeout(() => document.getElementById('qa-name').focus(), 50); }
+function closeQuickAdd() {
+  document.getElementById('quick-add-modal').classList.add('hidden');
+  ['qa-name','qa-deadline','qa-owner'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('qa-priority').value = 'p2';
+}
+function handleQAKey(e) { if (e.key==='Enter') submitQuickAdd(); if (e.key==='Escape') closeQuickAdd(); }
+function handleModalClick(e) { if (e.target===e.currentTarget) closeQuickAdd(); }
+function submitQuickAdd() {
+  const name = document.getElementById('qa-name').value.trim(); if (!name) return;
+  const t = makeTask(name);
+  t.priority = document.getElementById('qa-priority').value || 'p2';
+  t.deadline = document.getElementById('qa-deadline').value || null;
+  t.owner = document.getElementById('qa-owner').value.trim() || '';
+  tasks.push(t); saveToDrive(); closeQuickAdd(); renderList(); selectTask(t.id);
+}
+function makeTask(name) {
+  return { id:uid(), name, details:'', status:'NEEDS_DETAILS', owner:'', requestor:'', priority:'p2', tags:[], startDate:null, deadline:null, completedDate:null, createdDate:now(), updatedDate:now(), loe:'', loeNotes:'', subtaskIds:[], parentId:null, dependencyIds:[], activityLog:[{id:uid(),ts:now(),text:'Task created'}] };
+}
+
+// ─── KEYBOARD ──────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  const inInput = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName);
+  if (!inInput && e.key==='n') { e.preventDefault(); openQuickAdd(); }
+  if (e.key==='Escape') {
+    if (!document.getElementById('quick-add-modal').classList.contains('hidden')) closeQuickAdd();
+    else if (selectedId) closeDetail();
+  }
+  if (!inInput && e.key==='s' && selectedId) { e.preventDefault(); saveChanges(); }
+});
+</script>
+</body>
+</html>
